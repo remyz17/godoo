@@ -1,10 +1,9 @@
 package client
 
 import (
-	"fmt"
-	"ons/goScript/pkg/db"
-	"ons/goScript/pkg/utils"
 	"strconv"
+
+	"github.com/remyz17/godoo/internal/utils"
 )
 
 type Client struct {
@@ -77,7 +76,7 @@ func (c *Client) DatabaseExists(database string) (bool, error) {
 	return true, nil
 }
 
-func (c *Client) duplicateDatabase(from, to string) (bool, error) {
+func (c *Client) DuplicateDatabase(from, to string) (bool, error) {
 	adminPasswd, err := c.config.getAdminPasswd()
 	if err != nil {
 		return false, err
@@ -87,58 +86,6 @@ func (c *Client) duplicateDatabase(from, to string) (bool, error) {
 		return false, err
 	}
 	return reply.(bool), nil
-}
-
-func (c *Client) DuplicateDatabase(from, to string) (bool, error) {
-	return c.duplicateDatabase(from, to)
-}
-
-func (c *Client) SandboxDatabase(from, to string) (bool, error) {
-	var err error
-	var success bool
-	var fromConn *db.DbConn
-	var toConn *db.DbConn
-
-	if success, err = c.duplicateDatabase(from, to); err != nil || !success {
-		return false, err
-	}
-
-	// get "from" and "to" database connection and defer connection close
-	fromConn, err = db.GetDbConn(from)
-	if err != nil {
-		return false, err
-	}
-	defer fromConn.Close()
-	toConn, err = db.GetDbConn(to)
-	if err != nil {
-		return false, err
-	}
-	defer toConn.Close()
-
-	var webBaseUrl string
-	webBaseUrl, err = fromConn.GetWebBaseUrl("test")
-	if err != nil {
-		return false, err
-	}
-	if webBaseUrl != "" {
-		if err := toConn.SetWebBaseUrl(webBaseUrl); err != nil {
-			return false, err
-		}
-	}
-	if err = toConn.DesactivateIrCron(); err != nil {
-		return false, err
-	}
-	if err = toConn.DesactivateMailServers(false); err != nil {
-		return false, err
-	}
-	if err = toConn.DesactivateWebsiteDomain(); err != nil {
-		return false, err
-	}
-	// need to check Odoo version before (need to be at leat v9.0)
-	if err = toConn.DesactivateWebsiteRobots(); err != nil {
-		return false, err
-	}
-	return true, nil
 }
 
 func (c *Client) DropDatabase(database string) (bool, error) {
@@ -175,35 +122,4 @@ func (c *Client) RestoreDatabase(database string, dump string) (interface{}, err
 		return "", err
 	}
 	return reply, nil
-}
-
-func (c *Client) InstallModule(database string, module string) (bool, error) {
-	var err error
-	var version float64
-	var conn *db.DbConn
-	var access map[string]string
-
-	version, err = c.Version()
-	if err != nil {
-		return false, err
-	}
-
-	conn, err = db.GetDbConn(database)
-	if err != nil {
-		return false, err
-	}
-	defer conn.Close()
-
-	access, err = conn.GetAdminAccess(version)
-	if err != nil {
-		return false, err
-	}
-	fmt.Println(access)
-	err = conn.ResetAdminAccess(version)
-	if err != nil {
-		return false, nil
-	}
-	reply, err := c.rpc.objectCall("button_immediate_install", []interface{}())
-
-	return true, nil
 }
